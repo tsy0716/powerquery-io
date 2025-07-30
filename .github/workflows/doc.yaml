@@ -1,6 +1,6 @@
 name: Extract PowerQuery Functions Schema
-on: 
-  workflow_dispatch:
+on:
+  workflow_dispatch: {}
   schedule:
     - cron: '0 0 1 */1 *'  # Run monthly on the 1st day of each month
   push:
