@@ -9,8 +9,6 @@ on:
       - 'process/dox.pbix'
       - '.github/scripts/generate-doc-output.ps1'
       - '.github/workflows/doc.yaml'
-    paths-ignore:
-      - 'pq_functions_schema/**'  # Don't trigger on schema updates
 
 jobs:
   setup-and-process:
