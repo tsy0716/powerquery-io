@@ -20,27 +20,43 @@ jobs:
       - name: Setup environment dependencies
         run: |
           # Install Power BI Desktop via chocolatey (MSI version)
-          Write-Host "📦 Installing Power BI Desktop..."
-          choco install --ignore-checksums powerbi
+          Write-Host "📦 Installing Power BI Desktop via Chocolatey..."
           
-          # Wait for installation to complete
-          Start-Sleep -Seconds 30
-          
-          # Verify Power BI Desktop installation
-          $pbiMsiPath = "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe"
-          if (Test-Path $pbiMsiPath) {
-            Write-Host "✅ Power BI Desktop MSI version installed at: $pbiMsiPath"
-          } else {
-            Write-Host "⚠️ MSI version not found, checking for other installations..."
+          try {
+            # Install with verbose output and timeout
+            $installResult = choco install powerbi --ignore-checksums --timeout 600 --yes
             
-            # Check for Store version
-            $storeApps = Get-AppxPackage | Where-Object {$_.Name -like "*PowerBI*"}
-            if ($storeApps) {
-              Write-Host "✅ Found Power BI Desktop Store version: $($storeApps.Name)"
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✅ Chocolatey installation completed successfully"
             } else {
-              Write-Error "❌ No Power BI Desktop installation found"
-              exit 1
+              Write-Host "⚠️ Chocolatey installation may have issues (exit code: $LASTEXITCODE)"
+              Write-Host "Installation output: $installResult"
             }
+            
+            # Wait for installation to complete
+            Write-Host "⏳ Waiting for installation to finalize..."
+            Start-Sleep -Seconds 45
+            
+            # Verify installation was successful
+            $pbiMsiPath = "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe"
+            if (Test-Path $pbiMsiPath) {
+              Write-Host "✅ Power BI Desktop MSI successfully installed at: $pbiMsiPath"
+              
+              # Test if executable works
+              try {
+                $version = & $pbiMsiPath /? 2>&1
+                Write-Host "✅ Power BI Desktop executable is functional"
+              } catch {
+                Write-Host "⚠️ Power BI Desktop executable may have issues: $_"
+              }
+            } else {
+              Write-Host "⚠️ MSI version not found at expected location after installation"
+              Write-Host "This might be normal if Store version is already installed"
+            }
+            
+          } catch {
+            Write-Error "❌ Failed to install Power BI Desktop: $_"
+            Write-Host "Continuing anyway - may use existing installation..."
           }
           
           # Install SqlServer PowerShell module
@@ -57,7 +73,10 @@ jobs:
         run: |
           Write-Host "🔍 Verifying environment setup..."
           
-          # Check if SqlServer module is loaded
+          # Import SqlServer module (needed for each step)
+          Import-Module SqlServer -Force
+          
+          # Check if SqlServer module is now loaded
           if (Get-Module -Name SqlServer) {
             Write-Host "✅ SqlServer module is loaded"
           } else {
@@ -95,19 +114,52 @@ jobs:
           $pbiMsiPath = "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe"
           $pbiStorePath = "shell:AppsFolder\Microsoft.MicrosoftPowerBIDesktop_8wekyb3d8bbwe!Microsoft.MicrosoftPowerBIDesktop"
           
+          Write-Host "🔍 Checking for Power BI Desktop installations..."
+          
           if (Test-Path $pbiMsiPath) {
-            Write-Host "✅ Power BI Desktop MSI version available"
+            Write-Host "✅ Power BI Desktop MSI version found at: $pbiMsiPath"
             $env:PBI_DESKTOP_PATH = $pbiMsiPath
             $env:PBI_DESKTOP_TYPE = "MSI"
           } else {
+            Write-Host "ℹ️ MSI version not found at expected path"
+            
             # Check for Store version
-            $storeApps = Get-AppxPackage | Where-Object {$_.Name -like "*PowerBI*"}
-            if ($storeApps) {
-              Write-Host "✅ Power BI Desktop Store version available"
-              $env:PBI_DESKTOP_PATH = $pbiStorePath
-              $env:PBI_DESKTOP_TYPE = "STORE"
-            } else {
-              Write-Error "❌ No Power BI Desktop installation found"
+            try {
+              $storeApps = Get-AppxPackage -Name "*PowerBI*" -ErrorAction SilentlyContinue
+              if ($storeApps) {
+                Write-Host "✅ Power BI Desktop Store version found: $($storeApps.Name)"
+                $env:PBI_DESKTOP_PATH = $pbiStorePath
+                $env:PBI_DESKTOP_TYPE = "STORE"
+              } else {
+                Write-Host "ℹ️ Store version not found either"
+                
+                # Try to find PBI Desktop by searching common install locations
+                $possiblePaths = @(
+                  "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe",
+                  "${env:LOCALAPPDATA}\Microsoft\WindowsApps\PBIDesktop.exe"
+                )
+                
+                $foundPath = $null
+                foreach ($path in $possiblePaths) {
+                  if (Test-Path $path) {
+                    $foundPath = $path
+                    break
+                  }
+                }
+                
+                if ($foundPath) {
+                  Write-Host "✅ Power BI Desktop found at: $foundPath"
+                  $env:PBI_DESKTOP_PATH = $foundPath
+                  $env:PBI_DESKTOP_TYPE = "CUSTOM"
+                } else {
+                  Write-Error "❌ No Power BI Desktop installation found in any expected location"
+                  Write-Host "Searched locations:"
+                  $possiblePaths | ForEach-Object { Write-Host "  - $_" }
+                  exit 1
+                }
+              }
+            } catch {
+              Write-Error "❌ Error checking for Power BI Desktop: $_"
               exit 1
             }
           }
@@ -129,20 +181,31 @@ jobs:
           Write-Host "🚀 Starting Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) with file: $pbixPath"
           
           try {
-            if ($env:PBI_DESKTOP_TYPE -eq "MSI") {
-              # Launch MSI version directly
-              $process = Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -PassThru
-              Write-Host "✅ Power BI Desktop MSI launched with PID: $($process.Id)"
+            if ($env:PBI_DESKTOP_TYPE -eq "MSI" -or $env:PBI_DESKTOP_TYPE -eq "CUSTOM") {
+              # Launch MSI or custom version directly
+              $process = Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -PassThru -WindowStyle Hidden
+              Write-Host "✅ Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) launched with PID: $($process.Id)"
             } elseif ($env:PBI_DESKTOP_TYPE -eq "STORE") {
-              # Launch Store version
-              $process = Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -PassThru
-              Write-Host "✅ Power BI Desktop Store version launched with PID: $($process.Id)"
+              # Launch Store version - this is trickier and may not return a process object
+              Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -WindowStyle Hidden
+              Write-Host "✅ Power BI Desktop Store version launch initiated"
+              
+              # Wait a bit and check if process started
+              Start-Sleep -Seconds 10
+              $pbiProcess = Get-Process -Name "PBIDesktop" -ErrorAction SilentlyContinue
+              if ($pbiProcess) {
+                Write-Host "✅ Confirmed Power BI Desktop is running (PID: $($pbiProcess.Id))"
+              } else {
+                Write-Host "⚠️ Could not immediately confirm Power BI Desktop started, but continuing..."
+              }
             } else {
               Write-Error "❌ Unknown Power BI Desktop type: $($env:PBI_DESKTOP_TYPE)"
               exit 1
             }
           } catch {
             Write-Error "❌ Failed to launch Power BI Desktop: $_"
+            Write-Host "Attempted to launch: $($env:PBI_DESKTOP_PATH)"
+            Write-Host "With file: $pbixPath"
             exit 1
           }
           
