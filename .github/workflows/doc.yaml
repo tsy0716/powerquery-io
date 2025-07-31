@@ -290,7 +290,7 @@ jobs:
               New-Item -ItemType Directory -Path $outputDir -Force
             }
             
-            $outputJsonFile = Join-Path -Path $outputDir -ChildPath "pq_functions_schema.json"
+            $outputJsonFile = Join-Path -Path $outputDir -ChildPath "pq_schema.json"
             Write-Host "Extracting to: $outputJsonFile"
             
             # Run extraction script with error handling
