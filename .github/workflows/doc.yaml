@@ -120,6 +120,10 @@ jobs:
             Write-Host "✅ Power BI Desktop MSI version found at: $pbiMsiPath"
             $env:PBI_DESKTOP_PATH = $pbiMsiPath
             $env:PBI_DESKTOP_TYPE = "MSI"
+            
+            # Persist to GitHub environment for next steps
+            "PBI_DESKTOP_PATH=$pbiMsiPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+            "PBI_DESKTOP_TYPE=MSI" | Out-File -FilePath $env:GITHUB_ENV -Append
           } else {
             Write-Host "ℹ️ MSI version not found at expected path"
             
@@ -130,6 +134,10 @@ jobs:
                 Write-Host "✅ Power BI Desktop Store version found: $($storeApps.Name)"
                 $env:PBI_DESKTOP_PATH = $pbiStorePath
                 $env:PBI_DESKTOP_TYPE = "STORE"
+                
+                # Persist to GitHub environment for next steps
+                "PBI_DESKTOP_PATH=$pbiStorePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+                "PBI_DESKTOP_TYPE=STORE" | Out-File -FilePath $env:GITHUB_ENV -Append
               } else {
                 Write-Host "ℹ️ Store version not found either"
                 
@@ -151,6 +159,10 @@ jobs:
                   Write-Host "✅ Power BI Desktop found at: $foundPath"
                   $env:PBI_DESKTOP_PATH = $foundPath
                   $env:PBI_DESKTOP_TYPE = "CUSTOM"
+                  
+                  # Persist to GitHub environment for next steps
+                  "PBI_DESKTOP_PATH=$foundPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+                  "PBI_DESKTOP_TYPE=CUSTOM" | Out-File -FilePath $env:GITHUB_ENV -Append
                 } else {
                   Write-Error "❌ No Power BI Desktop installation found in any expected location"
                   Write-Host "Searched locations:"
@@ -176,15 +188,44 @@ jobs:
           $env:PQ_UICultureOverride = "en"
           Write-Host "Set locale to English (en)"
 
+          # Verify we have the Power BI Desktop path - fallback detection if needed
+          if (-not $env:PBI_DESKTOP_PATH -or -not $env:PBI_DESKTOP_TYPE) {
+            Write-Host "⚠️ Power BI Desktop environment variables not found, performing fallback detection..."
+            
+            $pbiMsiPath = "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe"
+            
+            if (Test-Path $pbiMsiPath) {
+              Write-Host "✅ Found Power BI Desktop MSI at: $pbiMsiPath"
+              $env:PBI_DESKTOP_PATH = $pbiMsiPath
+              $env:PBI_DESKTOP_TYPE = "MSI"
+            } else {
+              # Try to find in Windows Apps
+              $windowsAppsPath = "${env:LOCALAPPDATA}\Microsoft\WindowsApps\PBIDesktop.exe"
+              if (Test-Path $windowsAppsPath) {
+                Write-Host "✅ Found Power BI Desktop in Windows Apps: $windowsAppsPath"
+                $env:PBI_DESKTOP_PATH = $windowsAppsPath
+                $env:PBI_DESKTOP_TYPE = "WINDOWSAPPS"
+              } else {
+                Write-Error "❌ Could not locate Power BI Desktop installation"
+                exit 1
+              }
+            }
+          }
+
           # Start Power BI Desktop with the dox.pbix file
           $pbixPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "process\dox.pbix"
           Write-Host "🚀 Starting Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) with file: $pbixPath"
+          Write-Host "📍 Using executable: $($env:PBI_DESKTOP_PATH)"
           
           try {
-            if ($env:PBI_DESKTOP_TYPE -eq "MSI" -or $env:PBI_DESKTOP_TYPE -eq "CUSTOM") {
-              # Launch MSI or custom version directly
+            if ($env:PBI_DESKTOP_TYPE -eq "MSI" -or $env:PBI_DESKTOP_TYPE -eq "CUSTOM" -or $env:PBI_DESKTOP_TYPE -eq "WINDOWSAPPS") {
+              # Launch MSI, custom, or Windows Apps version directly
               $process = Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -PassThru -WindowStyle Hidden
-              Write-Host "✅ Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) launched with PID: $($process.Id)"
+              if ($process) {
+                Write-Host "✅ Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) launched with PID: $($process.Id)"
+              } else {
+                Write-Host "✅ Power BI Desktop ($($env:PBI_DESKTOP_TYPE)) launch initiated (no PID returned)"
+              }
             } elseif ($env:PBI_DESKTOP_TYPE -eq "STORE") {
               # Launch Store version - this is trickier and may not return a process object
               Start-Process -FilePath $env:PBI_DESKTOP_PATH -ArgumentList "`"$pbixPath`"" -WindowStyle Hidden
