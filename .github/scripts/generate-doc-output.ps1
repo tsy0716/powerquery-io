@@ -107,16 +107,36 @@ $daxFunctionsResult.return.root.row | ForEach-Object {
     $requiredParamCount = [int]$_.functions_x005B_RequiredParameters_x005D_
     
     # Create function parameters array
+    # RequiredParameters indicates how many of the first N parameters are required (rest are optional)
     $functionParameters = @()
-    if ($params -and $params -is [array] -and $params.Count -gt 0) {
-        for ($i = 0; $i -lt $params.Count; $i++) {
-            $isRequired = $i -lt $requiredParamCount
-            $functionParameters += [pscustomobject]@{
-                name = $params[$i]
-                type = "any"  # Default type, could be enhanced with actual parameter types
-                isRequired = $isRequired
-                isNullable = -not $isRequired
-                description = "Parameter $($params[$i])"
+    if ($params) {
+        # Check if params is an object/hashtable (with key-value pairs)
+        if ($params -is [PSCustomObject] -or $params -is [System.Collections.Hashtable]) {
+            $paramNames = $params.PSObject.Properties.Name
+            $paramIndex = 0
+            foreach ($paramName in $paramNames) {
+                $isRequired = $paramIndex -lt $requiredParamCount
+                $functionParameters += [pscustomobject]@{
+                    name = $paramName
+                    type = $params.$paramName
+                    isRequired = $isRequired
+                    isNullable = -not $isRequired
+                    description = "Parameter $paramName"
+                }
+                $paramIndex++
+            }
+        }
+        # Fallback: Check if params is an array (legacy format)
+        elseif ($params -is [array] -and $params.Count -gt 0) {
+            for ($i = 0; $i -lt $params.Count; $i++) {
+                $isRequired = $i -lt $requiredParamCount
+                $functionParameters += [pscustomobject]@{
+                    name = $params[$i]
+                    type = "any"
+                    isRequired = $isRequired
+                    isNullable = -not $isRequired
+                    description = "Parameter $($params[$i])"
+                }
             }
         }
     }
