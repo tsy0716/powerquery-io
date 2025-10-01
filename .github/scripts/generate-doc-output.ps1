@@ -1,3 +1,19 @@
+# ==============================================================================
+# Power Query M Documentation Extractor
+# ==============================================================================
+# This script extracts Power Query M function documentation from Power BI Desktop
+# and outputs it in the original format (matching Power BI Desktop structure).
+# 
+# The output includes ALL fields from Power BI Desktop including:
+# - Documentation.Examples (with Description, Code, Result)
+# - Documentation.Name, Description, LongDescription, Category
+# - Documentation.Caption, DisplayName (when available)
+# - Function Parameters and Return Types
+#
+# This format is designed to be consumed by downstream tools that can transform
+# the data as needed (e.g., LSP language server, documentation generators).
+# ==============================================================================
+
 param(
     [int]$port = 0, # Default port value (0 = auto-detect)
     [string]$outputJsonFile = "output.json" # Default output file
@@ -91,7 +107,7 @@ Write-Host "Database $dbName processed."
 # Invoke Analysis Services Command to get functions data
 [xml]$daxFunctionsResult = Invoke-ASCmd -Server $asInstance -Query "EVALUATE functions"
 
-# Convert the XML result for functions into LSP standard library symbols format
+# Convert the XML result for functions into original format (preserving all fields)
 $functions = @()
 $daxFunctionsResult.return.root.row | ForEach-Object {
     $functionName = $_.functions_x005B_Function_x005D_
@@ -104,41 +120,21 @@ $daxFunctionsResult.return.root.row | ForEach-Object {
     $doc = $_.functions_x005B_Documentation_x005D_ | ConvertFrom-Json
     $params = $_.functions_x005B_Parameters_x005D_ | ConvertFrom-Json
     $returnType = $_.functions_x005B_ReturnType_x005D_
-    $requiredParamCount = [int]$_.functions_x005B_RequiredParameters_x005D_
-    
-    # Create function parameters array
-    $functionParameters = @()
-    if ($params -and $params -is [array] -and $params.Count -gt 0) {
-        for ($i = 0; $i -lt $params.Count; $i++) {
-            $isRequired = $i -lt $requiredParamCount
-            $functionParameters += [pscustomobject]@{
-                name = $params[$i]
-                type = "any"  # Default type, could be enhanced with actual parameter types
-                isRequired = $isRequired
-                isNullable = -not $isRequired
-                description = "Parameter $($params[$i])"
-            }
-        }
-    }
+    $requiredParamCount = $_.functions_x005B_RequiredParameters_x005D_
     
     $functions += [pscustomobject]@{
-        name = $functionName
-        type = "function"
-        isDataSource = ($doc.'Documentation.Category' -eq "Accessing data")
-        documentation = [pscustomobject]@{
-            description = $doc.'Documentation.Description'
-            longDescription = $doc.'Documentation.LongDescription'
-            category = $doc.'Documentation.Category'
-        }
-        functionParameters = $functionParameters
-        returnType = if ($returnType) { $returnType.ToLower() } else { "any" }
+        Name = $functionName
+        Documentation = $doc
+        ReturnType = $returnType
+        Parameters = $params
+        RequiredParameters = $requiredParamCount
     }
 }
 
 # Invoke Analysis Services Command to get types data
 [xml]$daxTypesResult = Invoke-ASCmd -Server $asInstance -Query "EVALUATE types"
 
-# Convert the XML result for types into LSP format
+# Convert the XML result for types into original format (preserving all fields)
 $types = @()
 $daxTypesResult.return.root.row | ForEach-Object {
     $typeName = $_.types_x005B_FullType_x005D_
@@ -151,63 +147,44 @@ $daxTypesResult.return.root.row | ForEach-Object {
     $doc = $_.types_x005B_Documentation_x005D_ | ConvertFrom-Json
     
     $types += [pscustomobject]@{
-        name = $typeName
-        type = "type"
-        baseType = $_.types_x005B_Type_x005D_
-        documentation = [pscustomobject]@{
-            description = $doc.'Documentation.Description'
-            longDescription = $doc.'Documentation.LongDescription'
-            category = $doc.'Documentation.Category'
-        }
-        allowedValues = $doc.'Documentation.AllowedValues'
+        FullType = $typeName
+        Type = $_.types_x005B_Type_x005D_
+        Documentation = $doc
     }
 }
 
 # Invoke Analysis Services Command to get enumeration options/values data
 [xml]$daxEnumerationOptionsResult = Invoke-ASCmd -Server $asInstance -Query "EVALUATE enum_options"
 
-# Convert the XML result for enumeration options into LSP format
-$enums = @()
-$enumGroups = @{}
-
+# Convert the XML result for enumeration options into original format (preserving all fields)
+$enumOptions = @()
 $daxEnumerationOptionsResult.return.root.row | ForEach-Object {
     $enumName = $_.enum_options_x005B_Enum_x005D_
     $option = $_.enum_options_x005B_Option_x005D_
     $fullOption = $_.enum_options_x005B_FullOption_x005D_
     $value = $_.enum_options_x005B_Value_x005D_
     
-    # Group enum options by enum name
-    if (-not $enumGroups.ContainsKey($enumName)) {
-        $enumGroups[$enumName] = @()
-    }
-    
     if ($option) {
-        $enumGroups[$enumName] += [pscustomobject]@{
-            name = $option
-            fullName = $fullOption
-            value = $value
+        $enumOptions += [pscustomobject]@{
+            Enum = $enumName
+            Option = $option
+            FullOption = $fullOption
+            Value = $value
         }
     }
 }
 
-# Convert grouped enums to final format
-foreach ($enumName in $enumGroups.Keys) {
-    $enums += [pscustomobject]@{
-        name = $enumName
-        type = "enum"
-        options = $enumGroups[$enumName]
-    }
+# Create the output object in original format (matching Power BI Desktop structure)
+$outputData = [pscustomobject]@{
+    functions = $functions
+    types = $types
+    enum_options = $enumOptions
 }
 
-# Create the output array in standard library symbols format
-# Combine all symbols into a single array like the standard-library-symbols-en-us.json
-$allSymbols = @()
-$allSymbols += $functions
-$allSymbols += $types  
-$allSymbols += $enums
+# Convert to JSON and save to the specified file
+$outputData | ConvertTo-Json -Depth 10 | Out-File $outputJsonFile
 
-# Convert the combined symbols array to JSON and save to the specified file
-$allSymbols | ConvertTo-Json -Depth 10 | Out-File $outputJsonFile
+Write-Host "📊 Generated $($functions.Count) functions, $($types.Count) types, and $($enumOptions.Count) enum options"
+Write-Host "💾 Output saved to: $outputJsonFile"
 
-Write-Host "📊 Generated $($functions.Count) functions, $($types.Count) types, and $($enums.Count) enums"
-Write-Host "💾 Total symbols: $($allSymbols.Count)"
+
