@@ -3971,18 +3971,28 @@
       "Documentation": {
         "Documentation.Name": "List.Max",
         "Documentation.Description": "Returns the maximum value or the default value for an empty list.",
-        "Documentation.LongDescription": "Returns the maximum item in the list <code>list</code>, or the optional default value <code>default</code> if the list is empty.\r\n    An optional comparisonCriteria value, <code>comparisonCriteria</code>, may be specified to determine how to compare the items in the list. If this parameter is null, the default comparer is used.",
+        "Documentation.LongDescription": "Returns the maximum item in the list or the optional default value if the list is empty.\r\n    <ul>\r\n      <li><code>list</code>: The list of values.</li>\r\n      <li><code>default</code>: (Optional) The value to return if the list is empty.</li>\r\n      <li><code>comparisonCriteria</code>: (Optional) A function that's used to transform the values before they're compared. If this parameter is <code>null</code>, then the values are compared without any transformation.</li>\r\n      <li><code>includeNulls</code>: (Optional) Indicates whether <code>null</code> values in the list should be included in determining the maximum item. The default value is <code>true</code>.</li>\r\n    </ul>",
         "Documentation.Category": "List.Ordering",
         "Documentation.Examples": [
           {
-            "Description": "Find the max in the list {1, 4, 7, 3, -2, 5}.",
+            "Description": "Find the maximum value in the specified list.",
             "Code": "List.Max({1, 4, 7, 3, -2, 5}, 1)",
             "Result": "7"
           },
           {
-            "Description": "Find the max in the list {} or return -1 if it is empty. ",
+            "Description": "Find the maximum value in the specified list or return -1 if it's empty.",
             "Code": "List.Max({}, -1)",
             "Result": "-1"
+          },
+          {
+            "Description": "Find the item in a list of text values that's last alphabetically. If the list is empty, return \"none\".",
+            "Code": "let\r\n    Source = {\"boy\", \"dog\", \"girl\", \"zebra\", \"cat\", \"mouse\", \"rabbit\"},\r\n    MaxText = List.Max(Source, \"none\")\r\nin\r\n    MaxText",
+            "Result": "\"zebra\""
+          },
+          {
+            "Description": "Find the most recent date from a list of German dates. If the list is empty, return January 1, 2000.",
+            "Code": "let\r\n    Source = {\"12.02.2024\", \"15.05.2025\", \"10.10.2021\", \"16.01.2025\", \"30.12.2022\"},\r\n    MaxDate = List.Max(Source, #date(2000, 1, 1), each Date.FromText(_, [Culture = \"de-DE\"]))\r\nin\r\n    MaxDate",
+            "Result": "\"15.05.2025\""
           }
         ]
       },
@@ -6248,18 +6258,23 @@
       "Documentation": {
         "Documentation.Name": "Table.FromRecords",
         "Documentation.Description": "Converts a list of records into a table.",
-        "Documentation.LongDescription": "Converts <code>records</code>, a list of records, into a table.",
+        "Documentation.LongDescription": "Converts a specified list of records into a table.\r\n    <ul>\r\n      <li><code>records</code>: The list of records to convert to a table.</li>\r\n      <li><code>columns</code>: (Optional) A list of the table's column names, or the table's type.</li>\r\n      <li><code>missingField</code>: (Optional) Specifies how to handle missing fields in a row. Use one of the following values:</li>\r\n      <ul>\r\n        <li><code>MissingField.Error</code>: Any missing fields produce an error (default).</li>\r\n        <li><code>MissingField.UseNull</code>: Any missing fields are included as <code>null</code> values.</li>\r\n        <br>\r\n        Using <code>MissingField.Ignore</code> in this parameter produces an error.\r\n      </ul>\r\n    </ul>\r\n    ",
         "Documentation.Category": "Table.Table construction",
         "Documentation.Examples": [
           {
             "Description": "Create a table from records, using record field names as column names.",
-            "Code": "Table.FromRecords({\r\n    [CustomerID = 1, Name = \"Bob\", Phone = \"123-4567\"],\r\n    [CustomerID = 2, Name = \"Jim\", Phone = \"987-6543\"],\r\n    [CustomerID = 3, Name = \"Paul\", Phone = \"543-7890\"]\r\n})",
-            "Result": "Table.FromRecords({\r\n    [CustomerID = 1, Name = \"Bob\", Phone = \"123-4567\"],\r\n    [CustomerID = 2, Name = \"Jim\", Phone = \"987-6543\"],\r\n    [CustomerID = 3, Name = \"Paul\", Phone = \"543-7890\"]\r\n})"
+            "Code": "Table.FromRecords({\r\n        [CustomerID = 1, Name = \"Bob\", Phone = \"123-4567\"],\r\n        [CustomerID = 2, Name = \"Jim\", Phone = \"987-6543\"],\r\n        [CustomerID = 3, Name = \"Paul\", Phone = \"543-7890\"]\r\n    })",
+            "Result": "#table(type table[CustomerID = any, Name = any, Phone = any],\r\n{\r\n    {1, \"Bob\", \"123-4567\"},\r\n    {2, \"Jim\", \"987-6543\"},\r\n    {3, \"Paul\", \"543-7890\"}\r\n})"
           },
           {
             "Description": "Create a table from records with typed columns and select the number columns.",
-            "Code": "Table.ColumnsOfType(\r\n    Table.FromRecords(\r\n        {[CustomerID = 1, Name = \"Bob\"]},\r\n        type table[CustomerID = Number.Type, Name = Text.Type]\r\n    ),\r\n    {type number}\r\n)",
+            "Code": "Table.ColumnsOfType(\r\n        Table.FromRecords(\r\n            {[CustomerID = 1, Name = \"Bob\"]},\r\n            type table[CustomerID = Number.Type, Name = Text.Type]\r\n        ),\r\n        {type number}\r\n    )",
             "Result": "{\"CustomerID\"}"
+          },
+          {
+            "Description": "Create a table containing the first name, middle initial, and last name of the customers from the specified records. If any of the values are missing, replace the value with <code>null</code>.",
+            "Code": "Table.FromRecords({\r\n        [CustomerID = 1, FirstName = \"Bob\", MiddleInitial = \"C\", LastName = \"Smith\"],\r\n        [CustomerID = 2, FirstName = \"Sarah\", LastName = \"Jones\"],\r\n        [CustomerID = 3, FirstName = \"Harry\", MiddleInitial = \"H\"]\r\n    },\r\n    type table [FirstName = nullable text, MiddleInitial = nullable text, LastName = nullable text],\r\n    MissingField.UseNull)",
+            "Result": "#table(type table[FirstName = text, MiddleInitial = text, LastName = text],\r\n{\r\n    {\"Bob\", \"C\", \"Smith\"},\r\n    {\"Sarah\", null, \"Jones\"},\r\n    {\"Harry\", \"H\", null}\r\n})"
           }
         ]
       },
@@ -9899,10 +9914,26 @@
       "Name": "List.MaxN",
       "Documentation": {
         "Documentation.Name": "List.MaxN",
-        "Documentation.Description": "Returns the maximum value(s) in the list. The number of values to return or a filtering condition must be specified.",
-        "Documentation.LongDescription": "Returns the maximum value(s) in the list, <code>list</code>.\r\n    After the rows are sorted, optional parameters may be specified to further filter the result. The optional parameter <code>countOrCondition</code> specifies the number of values to return or a filtering condition. The optional parameter <code>comparisonCriteria</code> specifies how to compare values in the list.\r\n <ul>\r\n        <li> <code>list</code>: The list of values.</li>\r\n        <li> <code>countOrCondition</code>: If a number is specified, a list of up to <code>countOrCondition</code> items in ascending order is returned. If a condition is specified, a list of items that initially meet the condition is returned. Once an item fails the condition, no further items are considered.</li>\r\n<li><code>comparisonCriteria</code>: <i>[Optional]</i> An optional <code>comparisonCriteria</code> value can be specified to determine how to compare the items in the list. If this parameter is null, the default comparer is used.\r\n </ul>",
+        "Documentation.Description": "Returns the maximum value(s) in the list. The number of values to return or a filter condition must be specified.",
+        "Documentation.LongDescription": "Returns the maximum value(s) in the specified list. After the rows are sorted, optional parameters can be specified to further filter the result.\r\n    <ul>\r\n      <li> <code>list</code>: The list of values.</li>\r\n      <li> <code>countOrCondition</code>: Specifies the number of values to return or a filter condition. If a number is specified, a list of up to <code>countOrCondition</code> items in descending order is returned. If a condition is specified, the returned list includes all items that meet the condition.</li>\r\n      <li><code>comparisonCriteria</code>: (Optional) A function that's used to transform the values before they're compared. If this parameter is <code>null</code>, then the values are compared without any transformation.</li>\r\n      <li><code>includeNulls</code>: (Optional) Indicates whether <code>null</code> values in the list should be included in determining the maximum item. The default value is <code>true</code>.</li>      \r\n    </ul>",
         "Documentation.Category": "List.Ordering",
-        "Documentation.Examples": []
+        "Documentation.Examples": [
+          {
+            "Description": "Find the top 5 values in the specified list.",
+            "Code": "List.MaxN({3, 4, 5, -1, 7, 8, 2}, 5)",
+            "Result": "{8, 7, 5, 4, 3}"
+          },
+          {
+            "Description": "Find the words with more than 3 characters.",
+            "Code": "List.MaxN(\r\n        {\"boy\", \"dog\", \"pony\", \"cat\", \"rabbit\", \"bat\"},\r\n        each Text.Length(_) > 3\r\n    )\r\n",
+            "Result": "{\"rabbit\", \"pony\"}"
+          },
+          {
+            "Description": "Find the three most recent dates from a list of German dates.",
+            "Code": "let\r\n    Source = {\"12.02.2024\", \"15.05.2025\", \"10.10.2021\", \"16.01.2025\", \"30.12.2022\"},\r\n    MaxDate = List.MaxN(Source, 3, each Date.FromText(_, [Culture = \"de-DE\"]))\r\nin\r\n    MaxDate",
+            "Result": "{\r\n    \"15.05.2025\",\r\n    \"16.01.2025\",\r\n    \"12.02.2024\"\r\n}"
+          }
+        ]
       },
       "ReturnType": "list",
       "Parameters": {
@@ -11545,13 +11576,23 @@
       "Documentation": {
         "Documentation.Name": "Table.RemoveMatchingRows",
         "Documentation.Description": "Removes all occurrences of the specified rows from the table.",
-        "Documentation.LongDescription": "Removes all occurrences of the specified <code>rows</code> from the <code>table</code>.\r\n    An optional parameter <code>equationCriteria</code> may be specified to control the comparison between the rows of the table.",
+        "Documentation.LongDescription": "Removes all occurrences of the specified rows from the table.\r\n    <ul>\r\n      <li><code>table</code>: The table to search.</li>\r\n      <li><code>rows</code>: A list containing information about the rows to be removed.</li>\r\n      <li><code>equationCriteria</code>: (Optional) Specifies how equality is determined when comparing values. This parameter can be a key selector function, a comparer function, or a list of the columns in the table to use when comparing rows.</li>\r\n    </ul>",
         "Documentation.Category": "Table.Membership",
         "Documentation.Examples": [
           {
-            "Description": "Remove any rows where [a = 1] from the table <code>({[a = 1, b = 2], [a = 3, b = 4], [a = 1, b = 6]})</code>.",
+            "Description": "Remove any rows where [a = 1] from the specified table.",
             "Code": "Table.RemoveMatchingRows(\r\n    Table.FromRecords({\r\n        [a = 1, b = 2],\r\n        [a = 3, b = 4],\r\n        [a = 1, b = 6]\r\n    }),\r\n    {[a = 1]},\r\n    \"a\"\r\n)",
             "Result": "Table.FromRecords({[a = 3, b = 4]})"
+          },
+          {
+            "Description": "Remove canceled orders, ignoring case.",
+            "Code": "let\r\n    CurrentOrders = #table(type table[OrderID = number, Product = text, Quantity = number],\r\n    {\r\n        {101, \"Widget\", 5},\r\n        {102, \"Gadget\", 3},\r\n        {103, \"Widget\", 5}\r\n    }),\r\n    CanceledOrders = {\r\n        [OrderID = 103, Product = \"widget\", Quantity = 5]\r\n    },\r\n    FilteredOrders = Table.RemoveMatchingRows(CurrentOrders, CanceledOrders, Comparer.OrdinalIgnoreCase)\r\nin\r\n    FilteredOrders",
+            "Result": "#table(type table[OrderID = number, Product = text, Quantity = number],\r\n{\r\n    {101, \"Widget\", 5},\r\n    {102, \"Gadget\", 3}\r\n})"
+          },
+          {
+            "Description": "Remove any maintenance tasks that fall on US holidays.",
+            "Code": "let\r\n    MaintenanceSchedule = #table(type table [Task = text, Date = date],\r\n    {\r\n        {\"HVAC Check\", #date(2025, 7, 10)},              // Not a holiday\r\n        {\"Window Washing\", #date(2025, 9, 1)},           // Labor Day\r\n        {\"Fire Drill\", #date(2025, 9, 17)},              // Not a holiday\r\n        {\"Light Bulb Replacement\", #date(2025, 11, 27)}  // Thanksgiving\r\n    }),\r\n\r\n    USHolidays = {\r\n        [Date = #date(2025, 1, 1)],   // New Year's Day\r\n        [Date = #date(2025, 7, 4)],   // Independence Day\r\n        [Date = #date(2025, 9, 1)],   // Labor Day\r\n        [Date = #date(2025, 11, 27)], // Thanksgiving\r\n        [Date = #date(2025, 12, 25)]  // Christmas\r\n    },\r\n\r\n    FilteredSchedule = Table.RemoveMatchingRows(\r\n        MaintenanceSchedule,\r\n        USHolidays,\r\n        {\"Date\"}\r\n    )\r\nin\r\n    FilteredSchedule",
+            "Result": "#table(type table[Task = text, Date = date],\r\n{\r\n    {\"HVAC Check\", #date(2025, 7, 10)},\r\n    {\"Fire Drill\", #date(2025, 9, 17)}\r\n})"
           }
         ]
       },
@@ -13416,13 +13457,23 @@
       "Documentation": {
         "Documentation.Name": "List.Accumulate",
         "Documentation.Description": "Accumulates a summary value from the items in the list.",
-        "Documentation.LongDescription": "Accumulates a summary value from the items in the list <code>list</code>, using <code>accumulator</code>.\r\n    An optional seed parameter, <code>seed</code>, may be set.",
+        "Documentation.LongDescription": "Accumulates a summary value from the items in the specified list using the accumulator.\r\n    <ul>\r\n      <li><code>list</code>: The list to iterate.</li>\r\n      <li><code>seed</code>: An initial accumulated value.</li>\r\n      <li><code>accumulator</code>: A function that takes the current state and the current item and returns the new state.</li>\r\n    </ul>",
         "Documentation.Category": "List.Transformation functions",
         "Documentation.Examples": [
           {
-            "Description": "Accumulates the summary value from the items in the list {1, 2, 3, 4, 5} using ((state, current) => state + current ).",
-            "Code": "List.Accumulate({1, 2, 3, 4, 5}, 0, (state, current) => state + current)",
+            "Description": "Accumulates the summary value from the items in the list.",
+            "Code": "let\r\n    Source = List.Accumulate(\r\n        {1, 2, 3, 4, 5},\r\n        0,\r\n        (runningSum, nextNumber) => runningSum + nextNumber\r\n    )\r\nin\r\n    Source",
             "Result": "15"
+          },
+          {
+            "Description": "Concatenate each word in the list with a space between, but don't include a space at the beginning.",
+            "Code": "let\r\n    Source = List.Accumulate(\r\n        {\"The\", \"quick\", \"brown\", \"fox\", \"jumps\", \"over\", \"the\", \"lazy\", \"dog.\"},\r\n        null,\r\n        (fullTextSoFar, nextPart) =>\r\n            Text.Combine({fullTextSoFar, nextPart}, \" \")\r\n    )\r\nin\r\n    Source",
+            "Result": "\"The quick brown fox jumps over the lazy dog.\""
+          },
+          {
+            "Description": "Build a list of process completion times from a start date and a list of process run times.",
+            "Code": "let\r\n    #\"Process Duration\" = \r\n    {\r\n        #duration(0,1,0,0),\r\n        #duration(0,2,0,0),\r\n        #duration(0,3,0,0)\r\n    },\r\n    #\"Start Time\" = #datetime(2025, 9, 8, 19, 0, 0),\r\n    #\"Process Timeline\" = List.Accumulate(\r\n        #\"Process Duration\",\r\n        {#\"Start Time\"},\r\n        (accumulatedTimes, nextDuration) => \r\n            accumulatedTimes & {List.Last(accumulatedTimes) + nextDuration}\r\n    )\r\nin\r\n    #\"Process Timeline\"",
+            "Result": "{\r\n    #datetime(2025, 9, 8, 19, 0, 0),\r\n    #datetime(2025, 9, 8, 20, 0, 0),\r\n    #datetime(2025, 9, 8, 22, 0, 0),\r\n    #datetime(2025, 9, 9, 1, 0, 0)\r\n}"
           }
         ]
       },
@@ -14486,7 +14537,7 @@
       "Documentation": {
         "Documentation.Name": "Table.ReplaceValue",
         "Documentation.Description": "Replaces one value with another in the specified columns.",
-        "Documentation.LongDescription": "Replaces <code>oldValue</code> with <code>newValue</code> in the specified columns of the <code>table</code>.",
+        "Documentation.LongDescription": "Replaces a value with a new value in the specified columns of a table.\r\n    <ul>\r\n      <li><code>table</code>: The table to search.</li>\r\n      <li><code>oldValue</code>: The value to be replaced.</li>\r\n      <li><code>newValue</code>: The replacement value.</li>\r\n      <li><code>replacer</code>: The replacer function to use. The function can be either <code>Replacer.ReplaceText</code> to replace the original text with new text, <code>Replacer.ReplaceValue</code> to replace the original value with a new value, or a custom replacer.</li>\r\n      <li><code>columnsToSearch</code>: A list containing the specific column or columns in the table to search for the value to replace.</li>\r\n    </ul>",
         "Documentation.Category": "Table.Transformation",
         "Documentation.Examples": [
           {
